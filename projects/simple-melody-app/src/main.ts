@@ -46,7 +46,8 @@ type Metadata = {
 
 const sketch = (p: p5) => {
   let scaleSelector: p5.Element;
-  let oscillators: p5.Oscillator[] = [];
+
+  let oscillator: p5.Oscillator;
 
   const melody: Metadata = {
     scale: "C",
@@ -66,7 +67,7 @@ const sketch = (p: p5) => {
     putResetButton();
     putScaleSelector();
 
-    prepareOscillators();
+    startOscillator();
   };
 
   p.draw = () => {
@@ -106,34 +107,25 @@ const sketch = (p: p5) => {
     if (Object.keys(octave4NoteAndFq).includes(scale)) {
       melody.scale = scale;
       resetRecord();
-      prepareOscillators();
     } else {
       throw new Error(`invalid scale selected \`${scale}\``);
     }
   }
 
-  function prepareOscillators() {
-    const { scale } = melody;
-    const notes = getPythagoreanMajorScale(octave4NoteAndFq[scale]);
-    oscillators = notes.map((fq) => new p5.Oscillator(fq));
+  function startOscillator() {
+    oscillator = new p5.Oscillator();
+    oscillator.start();
   }
 
   function playNote(index: number) {
-    const osc = oscillators[index];
+    const { scale } = melody;
+    const notes = getPythagoreanMajorScale(octave4NoteAndFq[scale]);
+    oscillator.freq(notes[index]);
 
-    if (!(osc as any).started) {
-      osc.start();
-      osc.amp(1, 0.01);
-    }
-
-    setTimeout(() => stopNote(index), noteDuration * 1000);
-  }
-
-  function stopNote(index: number) {
-    const osc = oscillators[index];
-
-    osc.amp(0, 0.01);
-    osc.stop(0);
+    const envelope = new p5.Envelope();
+    envelope.setRange(1, 0);
+    envelope.setADSR(0.001, 0.5, 0.1, 0.5);
+    envelope.play(oscillator, 0, 0);
   }
 
   function play() {
@@ -165,13 +157,13 @@ const sketch = (p: p5) => {
 
   function drawKeys() {
     const keyWidth = getKeyWidth();
-    const numOfNotes = getNotes().length;
+    const notes = getNotes();
+    const numOfNotes = notes.length;
 
     for (let index = 0; index < numOfNotes; index++) {
-      const osc = oscillators[index];
       const { x, y } = getKeyPosition(index);
 
-      if ((osc as any).started) {
+      if (Math.abs(notes[index] - oscillator.getFreq()) < 1) {
         const h = p.map(index, 0, numOfNotes, 0, 360);
         p.fill(h, 100, 100);
       } else {
