@@ -49,6 +49,28 @@ importers:
         specifier: ^5.4.10
         version: 5.4.10
 
+  projects/visualization:
+    dependencies:
+      p5:
+        specifier: ^1.11.1
+        version: 1.11.1
+    devDependencies:
+      '@rollup/plugin-inject':
+        specifier: ^5.0.5
+        version: 5.0.5(rollup@4.24.3)
+      '@types/p5':
+        specifier: ^1.7.6
+        version: 1.7.6
+      prettier:
+        specifier: ^3.3.3
+        version: 3.3.3
+      typescript:
+        specifier: ~5.6.2
+        version: 5.6.3
+      vite:
+        specifier: ^5.4.10
+        version: 5.4.10
+
 packages:
 
   '@esbuild/aix-ppc64@0.21.5':
