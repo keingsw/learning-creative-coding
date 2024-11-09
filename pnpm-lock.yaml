@@ -27,7 +27,7 @@ importers:
         specifier: ^5.4.10
         version: 5.4.10
 
-  projects/simple-melody-app:
+  projects/magic-wand:
     dependencies:
       p5:
         specifier: ^1.11.1
@@ -49,7 +49,7 @@ importers:
         specifier: ^5.4.10
         version: 5.4.10
 
-  projects/visualization:
+  projects/simple-melody-app:
     dependencies:
       p5:
         specifier: ^1.11.1
