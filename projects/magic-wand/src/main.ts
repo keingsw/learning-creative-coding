@@ -1,17 +1,24 @@
+import "./index.css";
 import p5 from "p5";
 import "p5/lib/addons/p5.sound";
 
 const sketch = (p: p5) => {
+  const CANVAS = "canvas";
+  const CONTROLLERS = "controllers";
+
   const canvasWidth = 800;
   const canvasHeight = canvasWidth / 2;
 
-  const playButtonPositionY = canvasHeight * 1.2;
+  const controllerPositionY = canvasHeight * 1.2;
 
-  const playLineWidth = 3;
-  let playLineX = canvasWidth / 2;
+  const magicBorderWidth = 3;
+  let magicBorderX = canvasWidth / 2;
 
   let song: p5.SoundFile;
   let amp: p5.Amplitude;
+  let modeSelector: p5.Element;
+  let playButton: p5.Element;
+  let stopButton: p5.Element;
   let volumeHistory: (undefined | number)[] = [];
 
   p.preload = () => {
@@ -20,21 +27,33 @@ const sketch = (p: p5) => {
   };
 
   p.setup = () => {
-    p.createCanvas(canvasWidth, canvasHeight);
+    p.angleMode(p.DEGREES);
+
+    const canvas = p.createCanvas(canvasWidth, canvasHeight);
+    canvas.parent(CANVAS);
 
     amp = new p5.Amplitude();
 
     putToggleButton();
+    putModeSelector();
   };
 
   p.draw = () => {
     const volume = amp.getLevel();
+    const mode = (modeSelector as any).selected();
 
     p.background(0);
+    updateButtonVisibility();
 
     recordHistory(volume);
-    drawPlayLine();
-    drawVolumeLine();
+
+    if (mode === "circular") {
+      drawMagicBorderCircle();
+      drawMusicInCircular();
+    } else {
+      drawMagicBorderLine();
+      drawMusicInLinear();
+    }
   };
 
   p.mouseDragged = () => {
@@ -42,12 +61,24 @@ const sketch = (p: p5) => {
   };
 
   function putToggleButton() {
-    const playButton = p.createButton("toggle");
-    playButton.position(
-      canvasWidth * 0.5 - playButton.width,
-      playButtonPositionY
-    );
+    playButton = p.createButton("Play");
+    playButton.parent(CONTROLLERS);
     playButton.mouseClicked(toggleMusic);
+
+    stopButton = p.createButton("Stop");
+    stopButton.parent(CONTROLLERS);
+    stopButton.mouseClicked(toggleMusic);
+    stopButton.hide();
+  }
+
+  function updateButtonVisibility() {
+    if (song?.isPlaying()) {
+      playButton.hide();
+      stopButton.show();
+    } else {
+      playButton.show();
+      stopButton.hide();
+    }
   }
 
   function toggleMusic() {
@@ -57,6 +88,15 @@ const sketch = (p: p5) => {
     } else {
       song?.loop();
     }
+  }
+
+  function putModeSelector() {
+    modeSelector = p.createSelect();
+    modeSelector.parent(CONTROLLERS);
+
+    (modeSelector as any).option("linear");
+    (modeSelector as any).option("circular");
+    (modeSelector as any).selected("linear");
   }
 
   function initializeHistory() {
@@ -73,47 +113,53 @@ const sketch = (p: p5) => {
     }
   }
 
-  function drawPlayLine() {
+  function drawMagicBorderLine() {
     if (song?.isPlaying()) {
       p.stroke(255);
-      p.strokeWeight(playLineWidth);
-      p.line(playLineX, 0, playLineX, canvasHeight);
+      p.strokeWeight(magicBorderWidth);
+      p.line(magicBorderX, 0, magicBorderX, canvasHeight);
+      p.strokeWeight(1);
+    }
+  }
+
+  function drawMagicBorderCircle() {
+    const diameter = getMagicBorderCircleDiameter();
+
+    if (song?.isPlaying()) {
+      p.stroke(255);
+      p.strokeWeight(magicBorderWidth);
+      p.circle(canvasWidth / 2, canvasHeight / 2, diameter);
       p.strokeWeight(1);
     }
   }
 
   function updatePlayLineX() {
-    if (p.mouseY > playButtonPositionY) {
+    if (p.mouseY > controllerPositionY) {
       return;
     }
 
     if (p.mouseX <= 0) {
-      playLineX = 0;
+      magicBorderX = 0;
     } else if (p.mouseX >= canvasWidth) {
-      playLineX = canvasWidth - playLineWidth;
+      magicBorderX = canvasWidth - magicBorderWidth;
     } else {
-      playLineX = p.mouseX;
+      magicBorderX = p.mouseX;
     }
   }
 
-  function drawVolumeLine() {
+  function drawMusicInLinear() {
     const maxVolume = Math.max(...volumeHistory.filter((v) => v !== undefined));
-    const lineHeight = p.map(maxVolume, 0, 1, 0, canvasHeight);
+    const maxHeight = p.map(maxVolume, 0, 1, 0, canvasHeight);
 
-    const LOUD_THRESHOLD = 0.3;
-    const REACTIVITY = 3;
-    const recentVolumeWasLoud = volumeHistory
-      .slice(volumeHistory.length - REACTIVITY)
-      .some((v) => v && v > LOUD_THRESHOLD);
+    const wasLoud = recentVolumeWasLoud();
 
     if (song?.isPlaying()) {
       p.noFill();
-      p.translate(0, -(canvasHeight / 2) + lineHeight / 2);
+      p.translate(0, -(canvasHeight / 2) + maxHeight / 2);
 
-      const dots = volumeHistory.slice(playLineX);
-      const lines = volumeHistory.slice(0, playLineX);
+      const dots = volumeHistory.slice(magicBorderX);
+      const lines = volumeHistory.slice(0, magicBorderX);
 
-      // spread volume
       p.beginShape(p.POINTS);
       for (const [index, volume] of dots.entries()) {
         if (volume) {
@@ -122,12 +168,11 @@ const sketch = (p: p5) => {
           p.stroke(214);
           p.curveVertex(x, y);
 
-          drawNoise({ x, y, intensity: recentVolumeWasLoud ? 10 : 3 });
+          drawNoise({ x, y, intensity: wasLoud ? 10 : 3 });
         }
       }
       p.endShape();
 
-      // line volume
       p.beginShape(p.TESS);
       for (const [index, volume] of lines.entries()) {
         if (volume) {
@@ -142,8 +187,89 @@ const sketch = (p: p5) => {
               x,
               y,
               intensity: 3,
-              shiftX: getRandomInt(recentVolumeWasLoud ? 150 : 50),
-              shiftY: getRandomInt(recentVolumeWasLoud ? 150 : 50),
+              shiftX: getRandomInt(wasLoud ? 150 : 50),
+              shiftY: getRandomInt(wasLoud ? 150 : 50),
+            });
+          }
+        }
+      }
+      p.endShape();
+    }
+  }
+
+  function drawMusicInCircular() {
+    const diameter = getMagicBorderCircleDiameter();
+    const playCircleR = diameter / 2;
+
+    const translateX = canvasWidth / 2;
+    const translateY = canvasHeight / 2;
+
+    const wasLoud = recentVolumeWasLoud();
+
+    if (song?.isPlaying()) {
+      p.noFill();
+      p.translate(translateX, translateY);
+
+      p.beginShape(p.POINTS);
+      for (const [index, volume] of volumeHistory.entries()) {
+        if (volume) {
+          const time = Math.floor(index / 360);
+          const degree = index - 360 * time;
+
+          const r = p.map(volume, 0, 1, 10, canvasHeight / 2);
+          const x = r * p.cos(degree);
+          const y = r * p.sin(degree);
+
+          const playCircleX = playCircleR * p.cos(degree);
+          const playCircleY = playCircleR * p.sin(degree);
+
+          if (
+            Math.abs(x) > Math.abs(playCircleX) &&
+            Math.abs(y) > Math.abs(playCircleY)
+          ) {
+            continue;
+          }
+
+          p.stroke(214);
+          p.curveVertex(x, y);
+
+          drawNoise({ x, y, intensity: wasLoud ? 10 : 3 });
+        }
+      }
+      p.endShape();
+
+      p.beginShape(p.TESS);
+      for (const [index, volume] of volumeHistory.entries()) {
+        if (volume) {
+          const time = Math.floor(index / 360);
+          const degree = index - 360 * time;
+
+          const r = p.map(volume, 0, 1, 10, canvasHeight);
+          const x = r * p.cos(degree);
+          const y = r * p.sin(degree);
+
+          const playCircleX = playCircleR * p.cos(degree);
+          const playCircleY = playCircleR * p.sin(degree);
+
+          if (
+            Math.abs(x) <= Math.abs(playCircleX) &&
+            Math.abs(y) <= Math.abs(playCircleY)
+          ) {
+            continue;
+          }
+
+          p.stroke(255);
+
+          p.curveVertex(x, y);
+
+          const showNoise = Math.random() < 0.5;
+          if (showNoise) {
+            drawNoise({
+              x,
+              y,
+              intensity: 1,
+              shiftX: getRandomInt(wasLoud ? 150 : 50),
+              shiftY: getRandomInt(wasLoud ? 150 : 50),
             });
           }
         }
@@ -173,6 +299,18 @@ const sketch = (p: p5) => {
       p.stroke(...RGB);
       p.curveVertex(originX + randX, originY + randY);
     }
+  }
+
+  function getMagicBorderCircleDiameter() {
+    return p.map(magicBorderX, 0, canvasWidth, 0, canvasHeight);
+  }
+
+  function recentVolumeWasLoud() {
+    const LOUD_THRESHOLD = 0.3;
+    const REACTIVITY = 3;
+    return volumeHistory
+      .slice(volumeHistory.length - REACTIVITY)
+      .some((v) => v && v > LOUD_THRESHOLD);
   }
 };
 
