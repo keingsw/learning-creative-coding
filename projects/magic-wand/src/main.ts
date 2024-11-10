@@ -1,11 +1,15 @@
+import "./index.css";
 import p5 from "p5";
 import "p5/lib/addons/p5.sound";
 
 const sketch = (p: p5) => {
+  const CANVAS = "canvas";
+  const CONTROLLERS = "controllers";
+
   const canvasWidth = 800;
   const canvasHeight = canvasWidth / 2;
 
-  const playButtonPositionY = canvasHeight * 1.2;
+  const controllerPositionY = canvasHeight * 1.2;
 
   const playLineWidth = 3;
   let playLineX = canvasWidth / 2;
@@ -20,11 +24,13 @@ const sketch = (p: p5) => {
   };
 
   p.setup = () => {
-    p.createCanvas(canvasWidth, canvasHeight);
+    const canvas = p.createCanvas(canvasWidth, canvasHeight);
+    canvas.parent(CANVAS);
 
     amp = new p5.Amplitude();
 
     putToggleButton();
+    putModeSelector();
   };
 
   p.draw = () => {
@@ -43,10 +49,7 @@ const sketch = (p: p5) => {
 
   function putToggleButton() {
     const playButton = p.createButton("toggle");
-    playButton.position(
-      canvasWidth * 0.5 - playButton.width,
-      playButtonPositionY
-    );
+    playButton.parent(CONTROLLERS);
     playButton.mouseClicked(toggleMusic);
   }
 
@@ -57,6 +60,15 @@ const sketch = (p: p5) => {
     } else {
       song?.loop();
     }
+  }
+
+  function putModeSelector() {
+    const selector = p.createSelect();
+    selector.parent(CONTROLLERS);
+
+    (selector as any).option("linear", "Linear");
+    (selector as any).option("circular", "Circular");
+    (selector as any).selected("Linear");
   }
 
   function initializeHistory() {
@@ -83,7 +95,7 @@ const sketch = (p: p5) => {
   }
 
   function updatePlayLineX() {
-    if (p.mouseY > playButtonPositionY) {
+    if (p.mouseY > controllerPositionY) {
       return;
     }
 
